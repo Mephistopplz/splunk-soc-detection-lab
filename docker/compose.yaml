@@ -7,11 +7,13 @@ services:
       SPLUNK_START_ARGS: "--accept-license"
       SPLUNK_GENERAL_TERMS: "--accept-sgt-current-at-splunk-com"
       SPLUNK_PASSWORD: ${SPLUNK_PASSWORD:?Set SPLUNK_PASSWORD in docker/.env}
+      SPLUNK_HOME_OWNERSHIP_ENFORCEMENT: "false"
     ports:
       - "127.0.0.1:8000:8000"
     volumes:
       - splunk-var:/opt/splunk/var
       - splunk-etc:/opt/splunk/etc
+      - ../splunk-app/TA-botsv1-sysmon:/opt/splunk/etc/apps/TA-botsv1-sysmon:ro
     mem_limit: 6g
 
 volumes:
