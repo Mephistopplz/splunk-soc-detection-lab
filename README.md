@@ -1,19 +1,19 @@
 # Splunk SOC Detection Lab
 
-A hands-on detection engineering lab built in Splunk Enterprise (running in Docker) against Splunk's public **Boss of the SOC v1 (BOTSv1)** attack dataset. Each detection is mapped to MITRE ATT&CK, validated against real attack data, and documented with its false positives, evasion paths and triage steps.
+A detection engineering lab built in Splunk Enterprise, running locally in Docker, against Splunk's public Boss of the SOC v1 (BOTSv1) dataset. Each detection is mapped to MITRE ATT&CK, validated against the attack data, and written up with its threshold reasoning, likely false positives, evasion paths and response steps.
 
-Rebuilt and extended from my Monash University Cybersecurity Bootcamp coursework.
+The project rebuilds and extends coursework from my Monash University Cybersecurity Bootcamp.
 
-> **Status:** in progress. Detections are added as they're validated.
+Status: in progress. Detections are added once they have been validated.
 
-## What's in the repo
+## Repository layout
 
-| Path | What it is |
+| Path | Contents |
 |---|---|
-| `docker/` | Compose file to run Splunk locally (bound to localhost only; secrets live in `.env`, which is never committed) |
-| `splunk-app/TA-botsv1-sysmon/` | My custom search-time field extractions for Sysmon XML, mounted read-only into Splunk |
-| `detections/` | One file per detection: SPL, ATT&CK mapping, threshold rationale, validation evidence, false positives and evasion notes |
-| `docs/screenshots/` | Evidence of each detection firing |
+| `docker/` | Compose file for running Splunk locally. The web interface is bound to localhost only, and secrets are kept in an uncommitted `.env` file. |
+| `splunk-app/TA-botsv1-sysmon/` | A small add-on I wrote to provide search-time field extraction for Sysmon XML events. It is mounted into Splunk read-only. |
+| `detections/` | One file per detection, covering the search, ATT&CK mapping, threshold reasoning, validation, false positives and evasion. |
+| `docs/screenshots/` | Evidence of each detection firing against the dataset. |
 
 ## Detections
 

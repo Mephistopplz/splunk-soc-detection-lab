@@ -1,24 +1,25 @@
 # Detection 01: Web Vulnerability Scanning
 
-**Severity:** Low / informational (useful for correlation, not a standalone page)
-**Status:** Validated against the BOTSv1 attack-only dataset
+Severity: low (useful for correlation rather than as a standalone alert)
+Status: validated against the BOTSv1 attack-only dataset
 
-## What this catches
+## Overview
 
-One source hammering a web server across a huge number of different URL paths inside an hour. That breadth is what an automated vulnerability scanner looks like on the wire, whatever tool is behind it.
+This search flags a single source requesting an unusually large number of distinct URL paths from our web servers within an hour. Automated vulnerability scanners behave this way regardless of which product is being used, because covering a site means requesting a great many paths.
 
-## MITRE ATT&CK
+## ATT&CK mapping
 
-- **Tactic:** Reconnaissance (TA0043)
-- **Technique:** T1595.002 Active Scanning: Vulnerability Scanning
-- **Related (attempted):** T1190 Exploit Public-Facing Application. The scan carried SQL, command, LDAP and expression injection payloads. This detection shows the attempts; it doesn't prove any of them landed.
+| Tactic | Technique |
+|---|---|
+| Reconnaissance (TA0043) | T1595.002 Active Scanning: Vulnerability Scanning |
 
-## Data source
+The scan also carried SQL, command, LDAP and expression injection payloads, which relates it to T1190 Exploit Public-Facing Application. This search identifies the attempts but says nothing about whether any of them succeeded.
 
-- `index=botsv1`, `sourcetype=stream:http` (Splunk Stream wire data)
-- Fields: `src_ip`, `dest_ip`, `uri_path`, `http_user_agent`
+## Data
 
-## The search
+Splunk Stream HTTP data (`index=botsv1`, `sourcetype=stream:http`), using `src_ip`, `dest_ip`, `uri_path` and `http_user_agent`.
+
+## Search
 
 ```spl
 index=botsv1 sourcetype=stream:http
@@ -28,13 +29,11 @@ index=botsv1 sourcetype=stream:http
 | sort -unique_paths
 ```
 
-- `bin _time span=1h` mimics an hourly scheduled search.
-- `unique_paths` is the trigger. I keyed on breadth because it's the one thing a scanner can't avoid: it has to touch a lot of paths to do its job.
-- `requests`, `unique_agents` and `targets` are there so whoever picks up the alert can triage it without running five more searches. They aren't thresholds.
+The one-hour bins approximate an hourly scheduled search. The threshold applies only to `unique_paths`. The request count, number of user agents and target list are there to give whoever picks up the alert enough context to triage it without running further searches.
 
-## How I picked the threshold
+## Choosing the threshold
 
-I didn't want to guess a number, so I baselined every HTTP source in the dataset first (all time):
+Before settling on a number, I compared every HTTP source in the dataset over the full time range:
 
 | src_ip | requests | unique_paths | unique_agents |
 |---|---|---|---|
@@ -44,52 +43,47 @@ I didn't want to guess a number, so I baselined every HTTP source in the dataset
 | 192.168.250.100 | 93 | 42 | 11 |
 | 192.168.250.70 | 7 | 4 | 0 |
 
-The busiest legitimate client touched 163 paths in total. The scanner touched 1,872. A threshold of 500 sits comfortably between the two, with room either side.
+The busiest legitimate client requested 163 distinct paths across the whole period, against 1,872 for the scanner. A threshold of 500 sits well clear of both.
 
-The table also showed me why `unique_agents` would be the wrong trigger here: `23.22.63.114` scores highest on it but only ever hits two paths. That's a different attack entirely, and it's the starting point for Detection 02.
+The comparison also showed that user agent diversity would have been the wrong measure. `23.22.63.114` used the most user agents of any source but only ever requested two paths. That traffic turned out to be a separate attack, covered in Detection 02.
 
 ## Validation
 
-One hit, no false positives:
+The search returned one result and no false positives:
 
 | _time | src_ip | requests | unique_paths | unique_agents | targets |
 |---|---|---|---|---|---|
 | 2016-08-10 21:00 | 40.80.148.42 | 9,501 | 1,870 | 50 | 192.168.250.40, 192.168.250.70 |
 
-1,870 of the scanner's 1,872 paths were probed inside a single hour, across two internal servers.
+Almost the entire scan, 1,870 of its 1,872 paths, fell within a single hour and covered two internal servers.
 
 ![Detection 01 result](../docs/screenshots/01-web-vuln-scanning.png)
 
-## Why I didn't detect on the user agent
+## Why the user agent isn't used
 
-My first instinct was to look for the scanner's name, and it was there: `acunetix_wvs_security_test` shows up in the data. But only in a handful of fuzzed user agent strings carrying injection payloads. Over 99% of the scanner's requests used a perfectly ordinary Chrome user agent.
+The scanner's name does appear in the data, as `acunetix_wvs_security_test`, but only in a handful of user agent strings that were themselves injection payloads. More than 99 per cent of its requests presented an ordinary Chrome user agent. Since the user agent is set by the client, a search that relied on it could be defeated by changing a single setting.
 
-The user agent is attacker-controlled. A detection built on it is beaten by changing one setting.
+## Evasion
 
-## Attacker's view
+Thinking about how I would get past this search as the attacker:
 
-Coming at this from the offensive side, here's how I'd get past my own detection, and what would catch me:
-
-- **Go low and slow.** Throttle under 500 paths an hour and spread the scan across a day. A companion search over 24 hours with a proportionally higher threshold would still catch it, just later.
-- **Distribute it.** Split the scan across many source IPs so none crosses the line. Aggregating by destination instead of source would close that gap.
-- **Blend in.** Scope the scan to a short list of likely-vulnerable paths. That's the real weakness of any breadth-based detection, and why this one is a context signal rather than an alarm.
+- Running the scan slowly, below 500 paths an hour, would keep every hourly window under the threshold. A second search over 24 hours with a proportionally higher threshold would still catch it, only later.
+- Spreading the scan across many source addresses would keep each one below the line. Aggregating by destination rather than by source would close that gap.
+- Limiting the scan to a short list of paths known to be vulnerable would avoid the breadth this search depends on. That is the fundamental weakness of the approach, and the main reason I treat it as context rather than as an alert in its own right.
 
 ## False positives
 
-- Search engine crawlers and SEO tools
-- Uptime and monitoring services
-- Authorised internal vulnerability scanning
-
-The fix is an allowlist of known crawler and scanner IPs, kept as a Splunk lookup (future work).
+Search engine crawlers, SEO tools, uptime monitoring and authorised internal vulnerability scanning can all request large numbers of paths. An allowlist of known crawler and scanner addresses, maintained as a Splunk lookup, would handle most of these. I have left that as future work.
 
 ## Limitations
 
-- **Thin baseline.** I validated this on attack-only data with five sources. A real web server sees thousands of clients, so the threshold would need tuning against production traffic before I'd trust it.
-- **Noise.** Internet-facing servers get scanned constantly. On its own this is low value. It earns its keep through correlation, e.g. the same source logging in successfully afterwards.
+The baseline is thin. I validated this against attack-only data containing five sources, whereas a production web server sees thousands of clients, so the threshold would need tuning against real traffic before I relied on it.
 
-## Triage
+Internet-facing servers are also scanned constantly, which limits the value of this search on its own. It becomes useful when correlated with later activity from the same source, such as a successful login.
 
-1. Is the source an authorised internal scanner or a known crawler?
-2. Check response codes. Did any probes get a success response on sensitive paths?
-3. Pivot on `src_ip`. Did the same source do anything after the scan (logins, uploads)?
-4. Block or monitor at the firewall or WAF (Web Application Firewall), per policy.
+## Response
+
+1. Check whether the source is an authorised internal scanner or a known crawler.
+2. Review the response codes for any probes that succeeded against sensitive paths.
+3. Search for any later activity from the same source, such as login attempts or uploads.
+4. Block or monitor the source at the firewall or web application firewall (WAF) in line with policy.
