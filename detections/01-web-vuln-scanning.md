@@ -33,6 +33,8 @@ The one-hour bins approximate an hourly scheduled search. The threshold applies 
 
 ## Choosing the threshold
 
+Volume alone can be misleading, because it does not separate the scanning for other traffic. Counting distinct paths in this way targets the behaviour more succinctly leaving out most false positives.
+
 Before settling on a number, I compared every HTTP source in the dataset over the full time range:
 
 | src_ip | requests | unique_paths | unique_agents |
