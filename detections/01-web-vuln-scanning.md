@@ -87,3 +87,11 @@ Internet-facing servers are also scanned constantly, which limits the value of t
 2. Review the response codes for any probes that succeeded against sensitive paths.
 3. Search for any later activity from the same source, such as login attempts or uploads.
 4. Block or monitor the source at the firewall or web application firewall (WAF) in line with policy.
+
+## Investigation notes
+
+I started by ranking every source of HTTP traffic by request count. One external address, 40.80.148.42, accounted for about three quarters of all requests, which made it the obvious candidate, but volume alone doesn't prove much. A monitoring service or a proxy can be just as noisy.
+
+Looking at its user agents settled it. Almost every request claimed to be Chrome, but around fifty variants were injection payloads, several of them naming Acunetix. That was also what convinced me not to build the detection on the user agent.
+
+My first attempt at a comparison returned a single row, because I had left the scanner's address in the search from the previous step. Removing it gave me all five sources side by side, which is what the threshold is based on. I then binned the data by hour to check the pattern would still stand out in the kind of window a scheduled search would use.

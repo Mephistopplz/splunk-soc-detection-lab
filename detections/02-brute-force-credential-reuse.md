@@ -111,3 +111,15 @@ Any one of these controls would have stopped the attack at this stage:
 1. Treat the account as compromised. Reset the password, end active sessions and enable MFA.
 2. Review everything the second source did after logging in. Detection 03 continues from here.
 3. Block both addresses at the firewall or web application firewall (WAF) in line with policy.
+
+## Investigation notes
+
+23.22.63.114 first stood out in the baseline for Detection 01: plenty of requests, but only two paths and 183 different user agents. Breaking its traffic down by method, path and status showed it was alternating between fetching and posting to the Joomla admin login.
+
+Every POST returned 303, so the status codes couldn't tell me whether any guess worked. The form data could. Each submission used the username admin with a different password, roughly ten a second.
+
+Two counts didn't match along the way. One search found 412 login POSTs and another 411, and a later search on the uploaded file showed the same off-by-one. Both turned out to be stats dropping events where one of the grouping fields was empty, which I now check for whenever totals disagree. A misspelt path in one search also returned nothing rather than an error, another reminder that an empty result needs checking before it is trusted.
+
+The baseline of every source posting to the login page produced the key finding. Alongside the 412 attempts, 40.80.148.42 had made a single login with a password in the same five-minute window, followed by admin activity with no credentials. To test whether that password came from the brute force, I looked for any password submitted from more than one address. Exactly one was, from both IPs, ninety seconds apart.
+
+That was when I realised 02a on its own would never have flagged the actual compromise, and wrote 02b, hashing the passwords so the search could compare them without displaying them.
