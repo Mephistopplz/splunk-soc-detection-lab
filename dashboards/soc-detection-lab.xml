@@ -1,0 +1,201 @@
+<dashboard version="1.1" theme="dark">
+  <label>SOC Detection Lab (BOTSv1)</label>
+  <description>Five detections validated against the BOTSv1 attack-only dataset. Each panel runs the search from the matching file in detections/.</description>
+  <row>
+    <panel>
+      <single>
+        <title>01 Web scanning</title>
+        <search>
+          <query><![CDATA[index=botsv1 sourcetype=stream:http | bin _time span=1h | stats dc(uri_path) AS unique_paths by _time src_ip | where unique_paths > 500 | stats count]]></query>
+          <earliest>0</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="colorMode">block</option>
+        <option name="useColors">1</option>
+        <option name="rangeValues">[0]</option>
+        <option name="rangeColors">["0x53a051","0xdc4e41"]</option>
+        <option name="underLabel">hours with 500+ paths probed</option>
+        <option name="drilldown">none</option>
+      </single>
+    </panel>
+    <panel>
+      <single>
+        <title>02 Credential reuse</title>
+        <search>
+          <query><![CDATA[index=botsv1 sourcetype=stream:http http_method=POST uri_path="/joomla/administrator/index.php" form_data="*passwd*" | rex field=form_data "passwd=(?<password>[^&]+)" | rex field=form_data "username=(?<username>[^&]+)" | eval pw_hash=sha256(password) | eventstats dc(pw_hash) AS source_unique_passwords by src_ip | eval source_role=if(source_unique_passwords >= 20, "brute_force", "other") | stats values(source_role) AS roles by username pw_hash | where mvcount(roles) > 1 | stats count]]></query>
+          <earliest>0</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="colorMode">block</option>
+        <option name="useColors">1</option>
+        <option name="rangeValues">[0]</option>
+        <option name="rangeColors">["0x53a051","0xdc4e41"]</option>
+        <option name="underLabel">passwords reused after brute force</option>
+        <option name="drilldown">none</option>
+      </single>
+    </panel>
+    <panel>
+      <single>
+        <title>03 Web shell</title>
+        <search>
+          <query><![CDATA[index=botsv1 sourcetype="xmlwineventlog:microsoft-windows-sysmon/operational" EventCode=1 (ParentImage="*w3wp.exe" OR ParentImage="*php-cgi.exe") (Image="*cmd.exe" OR Image="*powershell.exe") | stats count]]></query>
+          <earliest>0</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="colorMode">block</option>
+        <option name="useColors">1</option>
+        <option name="rangeValues">[0]</option>
+        <option name="rangeColors">["0x53a051","0xdc4e41"]</option>
+        <option name="underLabel">shells started by the web server</option>
+        <option name="drilldown">none</option>
+      </single>
+    </panel>
+    <panel>
+      <single>
+        <title>04 Office macro</title>
+        <search>
+          <query><![CDATA[index=botsv1 sourcetype="xmlwineventlog:microsoft-windows-sysmon/operational" EventCode=1 (ParentImage="*WINWORD.EXE" OR ParentImage="*EXCEL.EXE" OR ParentImage="*POWERPNT.EXE" OR ParentImage="*OUTLOOK.EXE") (Image="*cmd.exe" OR Image="*powershell.exe" OR Image="*wscript.exe" OR Image="*cscript.exe" OR Image="*mshta.exe") | stats count]]></query>
+          <earliest>0</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="colorMode">block</option>
+        <option name="useColors">1</option>
+        <option name="rangeValues">[0]</option>
+        <option name="rangeColors">["0x53a051","0xdc4e41"]</option>
+        <option name="underLabel">Office apps starting a shell</option>
+        <option name="drilldown">none</option>
+      </single>
+    </panel>
+    <panel>
+      <single>
+        <title>05 Recovery disabled</title>
+        <search>
+          <query><![CDATA[index=botsv1 sourcetype="xmlwineventlog:microsoft-windows-sysmon/operational" EventCode=1 ((Image="*vssadmin.exe" CommandLine="*delete*shadows*") OR (Image="*wmic.exe" CommandLine="*shadowcopy*delete*") OR (Image="*bcdedit.exe" CommandLine="*recoveryenabled*no*") OR (Image="*bcdedit.exe" CommandLine="*bootstatuspolicy*ignoreallfailures*") OR (Image="*wbadmin.exe" CommandLine="*delete*catalog*")) | stats count]]></query>
+          <earliest>0</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="colorMode">block</option>
+        <option name="useColors">1</option>
+        <option name="rangeValues">[0]</option>
+        <option name="rangeColors">["0x53a051","0xdc4e41"]</option>
+        <option name="underLabel">recovery commands</option>
+        <option name="drilldown">none</option>
+      </single>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>01 Web vulnerability scanning (T1595.002)</title>
+      <table>
+        <search>
+          <query><![CDATA[index=botsv1 sourcetype=stream:http
+| bin _time span=1h
+| stats count AS requests dc(uri_path) AS unique_paths dc(http_user_agent) AS unique_agents values(dest_ip) AS targets by _time src_ip
+| where unique_paths > 500
+| sort -unique_paths]]></query>
+          <earliest>0</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="drilldown">none</option>
+      </table>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>02a Brute force against the Joomla admin login (T1110.001)</title>
+      <table>
+        <search>
+          <query><![CDATA[index=botsv1 sourcetype=stream:http http_method=POST uri_path="/joomla/administrator/index.php" form_data="*passwd*"
+| rex field=form_data "passwd=(?<password>[^&]+)"
+| rex field=form_data "username=(?<username>[^&]+)"
+| bin _time span=5m
+| stats count AS attempts dc(password) AS unique_passwords values(username) AS targeted_accounts by _time src_ip
+| where unique_passwords >= 20
+| sort -attempts]]></query>
+          <earliest>0</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="drilldown">none</option>
+      </table>
+    </panel>
+    <panel>
+      <title>02b Brute-forced password reused from another source (T1078)</title>
+      <table>
+        <search>
+          <query><![CDATA[index=botsv1 sourcetype=stream:http http_method=POST uri_path="/joomla/administrator/index.php" form_data="*passwd*"
+| rex field=form_data "passwd=(?<password>[^&]+)"
+| rex field=form_data "username=(?<username>[^&]+)"
+| eval pw_hash=sha256(password)
+| fields - password
+| eventstats dc(pw_hash) AS source_unique_passwords by src_ip
+| eval source_role=if(source_unique_passwords >= 20, "brute_force", "other")
+| stats values(src_ip) AS sources values(source_role) AS roles min(_time) AS first_seen max(_time) AS last_seen by username pw_hash
+| where mvcount(roles) > 1
+| eval minutes_between=round((last_seen - first_seen) / 60, 1)
+| convert ctime(first_seen) ctime(last_seen)
+| table username sources first_seen last_seen minutes_between]]></query>
+          <earliest>0</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="drilldown">none</option>
+      </table>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>03a Web server starting a command shell (T1505.003)</title>
+      <table>
+        <search>
+          <query><![CDATA[index=botsv1 sourcetype="xmlwineventlog:microsoft-windows-sysmon/operational" EventCode=1 (ParentImage="*w3wp.exe" OR ParentImage="*php-cgi.exe") (Image="*cmd.exe" OR Image="*powershell.exe")
+| stats count AS shells min(_time) AS first_seen max(_time) AS last_seen values(CommandLine) AS commands by host ParentImage Image
+| convert ctime(first_seen) ctime(last_seen)]]></query>
+          <earliest>0</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="drilldown">none</option>
+      </table>
+    </panel>
+    <panel>
+      <title>03b Program running from the web root (T1105)</title>
+      <table>
+        <search>
+          <query><![CDATA[index=botsv1 sourcetype="xmlwineventlog:microsoft-windows-sysmon/operational" EventCode=1 Image="*inetpub*"
+| table _time host User ParentImage Image CommandLine]]></query>
+          <earliest>0</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="drilldown">none</option>
+      </table>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>04 Office application starting a shell or script host (T1204.002)</title>
+      <table>
+        <search>
+          <query><![CDATA[index=botsv1 sourcetype="xmlwineventlog:microsoft-windows-sysmon/operational" EventCode=1 (ParentImage="*WINWORD.EXE" OR ParentImage="*EXCEL.EXE" OR ParentImage="*POWERPNT.EXE" OR ParentImage="*OUTLOOK.EXE") (Image="*cmd.exe" OR Image="*powershell.exe" OR Image="*wscript.exe" OR Image="*cscript.exe" OR Image="*mshta.exe")
+| eval cmd_preview=substr(CommandLine, 1, 150)
+| table _time host User ParentImage Image cmd_preview]]></query>
+          <earliest>0</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="drilldown">none</option>
+      </table>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>05 Ransomware disabling system recovery (T1490)</title>
+      <table>
+        <search>
+          <query><![CDATA[index=botsv1 sourcetype="xmlwineventlog:microsoft-windows-sysmon/operational" EventCode=1 ((Image="*vssadmin.exe" CommandLine="*delete*shadows*") OR (Image="*wmic.exe" CommandLine="*shadowcopy*delete*") OR (Image="*bcdedit.exe" CommandLine="*recoveryenabled*no*") OR (Image="*bcdedit.exe" CommandLine="*bootstatuspolicy*ignoreallfailures*") OR (Image="*wbadmin.exe" CommandLine="*delete*catalog*"))
+| stats count AS recovery_actions min(_time) AS first_seen max(_time) AS last_seen values(CommandLine) AS commands values(ParentImage) AS launched_by values(User) AS users by host
+| convert ctime(first_seen) ctime(last_seen)]]></query>
+          <earliest>0</earliest>
+          <latest>now</latest>
+        </search>
+        <option name="drilldown">none</option>
+      </table>
+    </panel>
+  </row>
+</dashboard>
