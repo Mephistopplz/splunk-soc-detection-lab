@@ -23,4 +23,4 @@ Status: in progress. Detections are added once they have been validated.
 | 02 | [Brute force and credential reuse](detections/02-brute-force-credential-reuse.md) | T1110.001, T1078 | Validated |
 | 03 | [Web shell and executable in the web root](detections/03-web-shell-webroot-executable.md) | T1505.003, T1059.003, T1105 | Validated |
 | 04 | [Office application starting a shell or script host](detections/04-office-spawns-shell.md) | T1204.002, T1059.003, T1059.005 | Validated |
-| 05 | Ransomware-style file activity over SMB | T1486 | Planned |
+| 05 | [Ransomware disabling system recovery](detections/05-inhibit-system-recovery.md) | T1490 | Validated |
