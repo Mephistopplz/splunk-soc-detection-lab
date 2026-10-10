@@ -5,7 +5,7 @@ Status: validated against the BOTSv1 attack-only dataset
 
 ## Overview
 
-These two searches cover what happened on the web server after the attacker logged in to Joomla. The first (03a) flags web server software, either the IIS worker process or the PHP runtime, starting a command shell. The second (03b) flags any program running from the website's own directory. Neither depends on the names the attacker gave their files, which would change from one intrusion to the next.
+These two searches cover what happened on the web server after the attacker logged in to Joomla. 03a flags the web server software (the IIS worker process or PHP) starting a command shell. 03b flags any program running from the website's own folder. Neither one relies on the file names the attacker used, because those would just change next time.
 
 ## ATT&CK mapping
 
@@ -69,7 +69,7 @@ Across every host and every day, this returned a single event: `cmd.exe` startin
 
 ## Evasion
 
-Thinking about how I would avoid these searches as the attacker:
+Ways I could get around these as the attacker:
 
 - A web shell that uses PHP's own file and network functions never starts a process, so 03a sees nothing. File integrity monitoring on the web root would cover that gap.
 - Copying `cmd.exe` to a different name defeats a match on the image path. Where Sysmon records the original file name from the binary's version information, matching on that would be harder to evade.
@@ -96,10 +96,11 @@ The baseline is thin: three hosts with Sysmon data across two days.
 
 ## Investigation notes
 
-Detection 02 ended with the attacker logged in to the Joomla admin panel, so my first question was whether they had uploaded anything. The Stream data showed one file, `agent.php`, posted to the admin page at 21:50:31. Every request for it afterwards came from the brute-force address, starting five minutes later.
+Detection 02 ended with the attacker logged in to the Joomla admin panel, so my first question was whether they'd uploaded anything. The Stream data showed one file, `agent.php`, posted to the admin page at 21:50:31. Every request for it after that came from the brute-force address, starting five minutes later.
 
-None of those requests carried a query string. My first search for one returned nothing, and before reading anything into that I checked whether the field existed at all. It did, for thousands of other requests, so the empty result was genuine: nothing was being passed to `agent.php` in the URL. That was as far as the HTTP data could take me, so I moved to the endpoint data.
+None of those requests had a query string. My first search for one came back empty, and before I read anything into that I checked whether the field existed at all. It did, for thousands of other requests, so the empty result was real: nothing was being passed to `agent.php` in the URL. That was as far as the HTTP data could take me, so I moved to the endpoint data.
 
-That meant finding the hostname behind 192.168.250.70. The name `we1149srv` looked likely, but I didn't want to pivot on a naming convention. A plain-text search for the IP showed `we1149srv` recording it more than 22,000 times in its own IIS logs, and a raw log line had it in the server address field. Counting that host's Sysmon events by day then confirmed it was recording on 10 August, so an empty process search would have meant something.
+That meant working out which host was 192.168.250.70. The name `we1149srv` looked likely, but I didn't want to go on a naming convention. A plain search for the IP showed `we1149srv` logging it more than 22,000 times in its own IIS logs, and a raw log line had it in the server IP field. I also counted that host's Sysmon events by day to make sure it was recording on 10 August, so an empty process search would actually mean something.
 
-My first look at that day's process starts returned 6 events against the 105 I expected. Event sampling had been switched to 1 in 10. With sampling off, the full set showed `php-cgi.exe` starting `cmd.exe`, a program running from the web root and a run of discovery commands. I now check the sampling setting alongside the event count and time range before trusting any result.
+My first look at that day's process starts gave me 6 events when I expected 105. Event sampling had been switched to 1 in 10. With sampling off, the full set showed `php-cgi.exe` starting `cmd.exe`, a program running from the web root, and a run of discovery commands. Now I check the sampling setting along with the event count and time range before I trust any result.
+

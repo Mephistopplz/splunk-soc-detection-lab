@@ -5,9 +5,9 @@ Status: validated against the BOTSv1 attack-only dataset
 
 ## Overview
 
-This detection has two searches because the attack happened in two stages. The first search (02a) flags a single source submitting a large number of different passwords to the Joomla admin login in a short period. The second (02b) looks for a password that was tried by one of those brute-forcing sources and later submitted from a different address, which in this dataset is the point at which the attacker gained access.
+There are two searches here because the attack happened in two stages. 02a flags one source trying a lot of different passwords against the Joomla admin login in a short time. 02b looks for a password that a brute-forcing source tried and that then got used from a different address. In this data, that second part is the moment the attacker got in.
 
-I ended up writing 02b after realising 02a missed the actual compromise. The attacker guessed the password from one IP, then logged in from another with a single attempt. Judged on its own, that login looks entirely ordinary.
+I only wrote 02b after I realised 02a missed the actual compromise. The attacker guessed the password from one IP and then logged in from another with a single attempt, which looks completely normal on its own.
 
 ## ATT&CK mapping
 
@@ -85,7 +85,7 @@ Both searches avoid displaying passwords, but that only limits exposure in resul
 
 ## Evasion
 
-Thinking about how I would avoid these searches as the attacker:
+If I were the attacker, this is how I'd try to avoid these:
 
 - Password spraying, where one password is tried against many accounts, keeps each account to a single attempt, so 02a never fires. A companion search counting distinct usernames per source would cover it.
 - Spreading the guesses across many IP addresses keeps every source under 20. That defeats 02a and also stops 02b from labelling any source as brute forcing. Aggregating by target account rather than by source would help.
@@ -114,12 +114,13 @@ Any one of these controls would have stopped the attack at this stage:
 
 ## Investigation notes
 
-23.22.63.114 first stood out in the baseline for Detection 01: plenty of requests, but only two paths and 183 different user agents. Breaking its traffic down by method, path and status showed it was alternating between fetching and posting to the Joomla admin login.
+23.22.63.114 first stood out in the Detection 01 baseline: lots of requests, but only two paths and 183 different user agents. When I broke its traffic down by method, path and status, it was switching between loading the Joomla admin login and posting to it.
 
-Every POST returned 303, so the status codes couldn't tell me whether any guess worked. The form data could. Each submission used the username admin with a different password, roughly ten a second.
+Every POST got a 303 back, so the status codes couldn't tell me if any guess worked. The form data could. Every attempt used the username admin with a different password, about ten a second.
 
-Two counts didn't match along the way. One search found 412 login POSTs and another 411, and a later search on the uploaded file showed the same off-by-one. Both turned out to be stats dropping events where one of the grouping fields was empty, which I now check for whenever totals disagree. A misspelt path in one search also returned nothing rather than an error, another reminder that an empty result needs checking before it is trusted.
+A couple of counts didn't line up along the way. One search found 412 login POSTs and another found 411, and later the uploaded file showed the same thing. Both times it was stats dropping events where one of the fields I grouped by was empty. I check for that now whenever totals don't match. A misspelt path in another search just returned nothing instead of an error, which was a good reminder that an empty result needs checking before I trust it.
 
-The baseline of every source posting to the login page produced the key finding. Alongside the 412 attempts, 40.80.148.42 had made a single login with a password in the same five-minute window, followed by admin activity with no credentials. To test whether that password came from the brute force, I looked for any password submitted from more than one address. Exactly one was, from both IPs, ninety seconds apart.
+The key finding came from the baseline of everyone posting to the login page. Next to the 412 attempts, 40.80.148.42 had logged in once with a password in the same five-minute window, then carried on in the admin panel without credentials. To check whether that password came from the brute force, I looked for any password used from more than one address. Only one was, from both IPs, ninety seconds apart.
 
-That was when I realised 02a on its own would never have flagged the actual compromise, and wrote 02b, hashing the passwords so the search could compare them without displaying them.
+That's when I realised 02a on its own would never have caught the actual compromise. So I wrote 02b, and hashed the passwords so the search could compare them without showing them.
+

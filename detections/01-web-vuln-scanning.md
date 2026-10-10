@@ -5,7 +5,7 @@ Status: validated against the BOTSv1 attack-only dataset
 
 ## Overview
 
-This search flags a single source requesting an unusually large number of distinct URL paths from our web servers within an hour. Automated vulnerability scanners behave this way regardless of which product is being used, because covering a site means requesting a great many paths.
+This flags one source hitting a large number of different URL paths on our web servers within an hour. That's what an automated vulnerability scanner looks like, whatever tool is being used, because it has to request a lot of paths to cover a site.
 
 ## ATT&CK mapping
 
@@ -67,7 +67,7 @@ The scanner's name does appear in the data, as `acunetix_wvs_security_test`, but
 
 ## Evasion
 
-Thinking about how I would get past this search as the attacker:
+How I'd try to get around this as the attacker:
 
 - Running the scan slowly, below 500 paths an hour, would keep every hourly window under the threshold. A second search over 24 hours with a proportionally higher threshold would still catch it, only later.
 - Spreading the scan across many source addresses would keep each one below the line. Aggregating by destination rather than by source would close that gap.
@@ -92,8 +92,9 @@ Internet-facing servers are also scanned constantly, which limits the value of t
 
 ## Investigation notes
 
-I started by ranking every source of HTTP traffic by request count. One external address, 40.80.148.42, accounted for about three quarters of all requests, which made it the obvious candidate, but volume alone doesn't prove much. A monitoring service or a proxy can be just as noisy.
+I started by ranking every HTTP source by request count. One external address, 40.80.148.42, made up about three quarters of all the requests. That made it the obvious suspect, but a busy source isn't proof of anything. A monitoring service or a proxy can be just as noisy.
 
-Looking at its user agents settled it. Almost every request claimed to be Chrome, but around fifty variants were injection payloads, several of them naming Acunetix. That was also what convinced me not to build the detection on the user agent.
+Its user agents settled it. Nearly every request said it was Chrome, but about fifty were injection payloads, and some of them named Acunetix. That's also why I didn't build the detection on the user agent.
 
-My first attempt at a comparison returned a single row, because I had left the scanner's address in the search from the previous step. Removing it gave me all five sources side by side, which is what the threshold is based on. I then binned the data by hour to check the pattern would still stand out in the kind of window a scheduled search would use.
+My first comparison only returned one row because I'd left the scanner's IP in the search from the step before. Once I took it out I had all five sources side by side, and that's what the threshold is based on. I then split the data into one-hour windows to make sure the scan still stood out the way a scheduled search would see it.
+

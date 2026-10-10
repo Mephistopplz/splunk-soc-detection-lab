@@ -5,9 +5,9 @@ Status: validated against the BOTSv1 attack-only dataset
 
 ## Overview
 
-This search flags a Microsoft Office application (Word, Excel, PowerPoint or Outlook) starting a command shell or script host. Office applications open and edit documents. They have very little legitimate reason to start `cmd.exe`, PowerShell or the Windows Script Host, so when they do, it usually means a macro in a document is running code.
+This flags a Microsoft Office app (Word, Excel, PowerPoint or Outlook) starting a command shell or script host. Office apps are for opening and editing documents. They have very little reason to start `cmd.exe`, PowerShell or the Windows Script Host, so when they do, it usually means a macro is running code.
 
-In this dataset it catches the first step of the ransomware infection on Bob Smith's workstation: a Word macro writing a VBScript downloader to disk and running it.
+In this data it catches the first step of the ransomware infection on Bob Smith's workstation: a Word macro writing a VBScript downloader to disk and running it.
 
 ## ATT&CK mapping
 
@@ -66,7 +66,7 @@ The full command line writes each line of an obfuscated VBScript into that file 
 
 ## Evasion
 
-Thinking about how I would avoid this search as the attacker:
+What would beat this search:
 
 - Having the macro start its payload through WMI or a scheduled task makes the new process a child of `WmiPrvSE.exe` or `svchost.exe` rather than Word, so the parent list never matches.
 - Spoofing the parent process ID makes a process appear to have been started by something else.
@@ -91,10 +91,11 @@ The baseline is thin: three hosts with Sysmon data across two days, and one user
 
 ## Investigation notes
 
-I started by checking which days Sysmon covered on the desktop. Both 10 and 24 August had process creation events, and 24 August stood out, with network connections up from 883 to 52,453.
+I started by checking which days Sysmon covered on the desktop. Both 10 and 24 August had process events, and 24 August stood out, with network connections jumping from 883 to 52,453.
 
-Rather than searching for Office straight away, I listed every program that had started other programs on the desktop, by day. Word appeared as a parent on 24 August alongside two other things that didn't belong: a `.tmp` file running as a program from AppData, and an `osk.exe` running from a random-named folder.
+I didn't search for Office straight away. I listed every program that had started other programs on the desktop, by day. On 24 August Word showed up as a parent, along with two things that didn't belong: a `.tmp` file running as a program from AppData, and an `osk.exe` running from a random-named folder.
 
-Word had started two processes. One was the print driver host. The other was `cmd.exe`, with a command line that built a VBScript file line by line and ran it. My first attempt at that search returned 588 events instead of 2, because I had left off the Word filter. The event count caught it immediately.
+Word had started two processes. One was the print driver host, which is normal. The other was `cmd.exe`, with a command line that built a VBScript file line by line and then ran it. My first try at that search gave me 588 events instead of 2 because I'd left off the Word filter. The event count showed me straight away.
 
-I initially assumed the script host had run the dropped VBScript, because that's what Windows does with `.vbs` files by default, but nothing I'd seen in the data showed it. Searching for `wscript.exe` itself, with its parent, settled it: the same `cmd.exe` started it at the same second, running `20429.vbs` from AppData. The same search also turned up the ransom note being opened by the fake `osk.exe` half an hour later.
+I assumed the script host had run the VBScript, because that's what Windows does with `.vbs` files by default, but I hadn't actually seen it in the data. Searching for `wscript.exe` itself, with its parent, proved it: the same `cmd.exe` started it in the same second, running `20429.vbs` from AppData. That search also turned up the ransom note being opened by the fake `osk.exe` about half an hour later.
+
